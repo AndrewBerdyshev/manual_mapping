@@ -1,8 +1,7 @@
-#include <iostream>
+#include "manual_mapping.h"
 
 int main(int argc, char** argv)
 {
-	std::cout << "LOL" << std::endl;
-	std::cin.get();
+	ManualMap("cheat.dll", "firefox.exe");
 	return 0;
 }
