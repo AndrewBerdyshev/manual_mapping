@@ -145,7 +145,7 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="src\main.cpp" />
+    <ClCompile Include="test\main.cpp" />
     <ClCompile Include="src\manual_mapping.cpp" />
   </ItemGroup>
   <ItemGroup>
