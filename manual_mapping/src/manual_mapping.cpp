@@ -53,8 +53,6 @@ void manual_mapping::UploadRelocationStuff(const HANDLE process, const uint64_t 
 	params.imageBase = imageBase;
 	WriteProcessMemory(process, paramAlloc, &params, sizeof(params), nullptr);
 
-	// Should be rewritten. no threads, please.
-	//CreateRemoteThread(process, nullptr, NULL, (LPTHREAD_START_ROUTINE)alloc, paramAlloc, NULL, nullptr);
 	threadhijacking::ThreadHijacking(process, alloc, paramAlloc);
 }
 

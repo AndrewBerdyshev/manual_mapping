@@ -1,6 +1,5 @@
 #include <thread_hijacking.h>
 #include <mylib.h>
-#include <thread_hijacking.h>
 
 void ManualMap(const char* dll, const char* processName);
 
