@@ -1,5 +1,6 @@
 #include <thread_hijacking.h>
 #include <mylib.h>
+#include <handle_hijacking.h>
 
 void ManualMap(const char* dll, const char* processName);
 
@@ -11,7 +12,7 @@ reinterpret_cast<IMAGE_NT_HEADERS*>(rawDLL + dosHeader->e_lfanew)->FileHeader.Nu
 
 namespace manual_mapping
 {
-	uint64_t UploadImage(HANDLE process, uint64_t rawDLL);
+	uint64_t UploadImage(IOCTLProcess* process, uint64_t rawDLL);
 	struct RelocationStuffParams
 	{
 		using LoadLibraryAFn = HMODULE(*)(LPCSTR lpLibFileName);
@@ -21,5 +22,5 @@ namespace manual_mapping
 		uint64_t imageBase;
 	};
 	void RelocationStuff(RelocationStuffParams* params);
-	void UploadRelocationStuff(const HANDLE process, const uint64_t imageBase);
+	void UploadRelocationStuff(IOCTLProcess* process, ThreadProcess* thread, const uint64_t imageBase);
 }

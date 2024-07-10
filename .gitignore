@@ -9,6 +9,7 @@ intermediate/
 test/
 *.sln
 *.vcxproj*
+*.dll
 
 # User-specific files
 *.rsuser

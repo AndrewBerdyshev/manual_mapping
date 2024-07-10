@@ -2,58 +2,58 @@
 
 void ManualMap(const char* dll, const char* processName)
 {
-	const auto rawDLL = reinterpret_cast<uint64_t>(mylib::ReadFile(dll));
+	char fullPath[MAX_PATH];
+	if (!GetFullPathNameA(dll, MAX_PATH, fullPath, nullptr)) return;
+	const auto rawDLL = reinterpret_cast<uint64_t>(mylib::MyReadFile(fullPath));
 	if (!rawDLL) return;
-	const auto processID = mylib::GetProcessID(processName);
-	if (!processID) return;
-	const auto process = OpenProcess(
-		PROCESS_ALL_ACCESS, 
-		FALSE, processID);
-	if (!process) return;
+
+	const auto hijack = HandleHijacking(processName, PROCESS_VM_OPERATION | PROCESS_VM_READ | PROCESS_VM_WRITE);
+	if (!hijack.handle) return;
+	auto process = new IOCTLProcess(hijack);
+	auto thread = new ThreadProcess(hijack);
+
 	const auto imageBase = manual_mapping::UploadImage(process, rawDLL);
 	if (!imageBase) return;
-	manual_mapping::UploadRelocationStuff(process, imageBase);
+	manual_mapping::UploadRelocationStuff(process, thread, imageBase);
+	delete process;
+	delete thread;
 }
 
-uint64_t manual_mapping::UploadImage(const HANDLE process, const uint64_t rawDLL)
+uint64_t manual_mapping::UploadImage(IOCTLProcess* process, const uint64_t rawDLL)
 {
 	const auto dosHeader = reinterpret_cast<IMAGE_DOS_HEADER*>(rawDLL);
 	const auto ntHeader = reinterpret_cast<IMAGE_NT_HEADERS*>(rawDLL + dosHeader->e_lfanew);
 
-	const auto imageBase = reinterpret_cast<uint64_t>(
-		VirtualAllocEx(process, nullptr, ntHeader->OptionalHeader.SizeOfImage, MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE));
+	const auto imageBase = reinterpret_cast<uint64_t>(process->Alloc(ntHeader->OptionalHeader.SizeOfImage));
 	if (!imageBase) return 0;
 
 	auto section = IMAGE_FIRST_SECTION(ntHeader);
 	for (size_t i = 0; i < ntHeader->FileHeader.NumberOfSections; i++, section++)
 	{
-		WriteProcessMemory(process,
-			reinterpret_cast<char*>(imageBase + section->VirtualAddress),
-			reinterpret_cast<char*>(rawDLL + section->PointerToRawData),
-			section->SizeOfRawData, nullptr);
+		process->Write(reinterpret_cast<char*>(imageBase + section->VirtualAddress),
+			reinterpret_cast<uint8_t*>(rawDLL + section->PointerToRawData),
+			section->SizeOfRawData);
 	}
 
-	WriteProcessMemory(process, reinterpret_cast<char*>(imageBase), reinterpret_cast<char*>(rawDLL), 
-		PE_HEADER_SIZE(dosHeader), nullptr);
+	process->Write(reinterpret_cast<void*>(imageBase), reinterpret_cast<uint8_t*>(rawDLL), PE_HEADER_SIZE(dosHeader));
 	return imageBase;
 }
 
-void manual_mapping::UploadRelocationStuff(const HANDLE process, const uint64_t imageBase)
+void manual_mapping::UploadRelocationStuff(IOCTLProcess* process, ThreadProcess* thread, const uint64_t imageBase)
 {
 	const auto funcSize = mylib::GetFuncSize(manual_mapping::RelocationStuff);
-	const auto alloc = VirtualAllocEx(process, nullptr, funcSize, MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE);
+	const auto alloc = process->Alloc(funcSize);
 	if (!alloc) return;
-	WriteProcessMemory(process, alloc, manual_mapping::RelocationStuff, funcSize, nullptr);
+	process->Write(alloc, reinterpret_cast<uint8_t*>(manual_mapping::RelocationStuff), funcSize);
 
-	const auto paramAlloc = VirtualAllocEx(process, nullptr, sizeof(RelocationStuffParams), 
-		MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
+	const auto paramAlloc = process->Alloc(sizeof(RelocationStuffParams));
 	RelocationStuffParams params;
+	// Addresses of these funcs are the same in all processes.
 	params.getProcAddress = GetProcAddress;
 	params.loadLibraryA = LoadLibraryA;
 	params.imageBase = imageBase;
-	WriteProcessMemory(process, paramAlloc, &params, sizeof(params), nullptr);
-
-	threadhijacking::ThreadHijacking(process, alloc, paramAlloc);
+	process->Write(paramAlloc, reinterpret_cast<uint8_t*>(&params), sizeof(params));
+	threadhijacking::ThreadHijacking(process, thread, alloc, paramAlloc);
 }
 
 void manual_mapping::RelocationStuff(RelocationStuffParams* params)
