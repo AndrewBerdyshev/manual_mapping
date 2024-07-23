@@ -41,7 +41,7 @@ uint64_t manual_mapping::UploadImage(IOCTLProcess* process, const uint64_t rawDL
 
 void manual_mapping::UploadRelocationStuff(IOCTLProcess* process, ThreadProcess* thread, const uint64_t imageBase)
 {
-	const auto funcSize = mylib::GetFuncSize(manual_mapping::RelocationStuff);
+	const auto funcSize = mylib::GetFuncSize(reinterpret_cast<uintptr_t>(manual_mapping::RelocationStuff));
 	const auto alloc = process->Alloc(funcSize);
 	if (!alloc) return;
 	process->Write(alloc, reinterpret_cast<uint8_t*>(manual_mapping::RelocationStuff), funcSize);
@@ -108,13 +108,13 @@ void manual_mapping::RelocationStuff(RelocationStuffParams* params)
 		auto addressTableEntry = reinterpret_cast<IMAGE_THUNK_DATA*>(params->imageBase + baseImportTableEntry->FirstThunk);
 		for (; addressTableEntry->u1.Function; addressTableEntry++)
 		{
-			const auto importedFunc = reinterpret_cast<IMAGE_IMPORT_BY_NAME*>(params->imageBase + 
+			const auto importedFunc = reinterpret_cast<IMAGE_IMPORT_BY_NAME*>(params->imageBase +
 				addressTableEntry->u1.AddressOfData);
 			addressTableEntry->u1.Function = reinterpret_cast<uint64_t>(params->getProcAddress(moduleHandle, importedFunc->Name));
 		}
 	}
 
-	// Calling tls-callbacks.
+	//Calling tls-callbacks.
 	if (ntHeader->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_TLS].Size)
 	{
 		auto tlsTable =
@@ -124,6 +124,7 @@ void manual_mapping::RelocationStuff(RelocationStuffParams* params)
 			reinterpret_cast<PIMAGE_TLS_CALLBACK*>(tlsTable->AddressOfCallBacks);
 		for (; tlsCallbackTableEntry; tlsCallbackTableEntry++)
 		{
+			if (!tlsCallbackTableEntry || !*tlsCallbackTableEntry) break; // no tls dirctory
 			(*tlsCallbackTableEntry)(reinterpret_cast<void*>(params->imageBase), DLL_PROCESS_ATTACH, nullptr);
 		}
 	}
